@@ -1,0 +1,12 @@
+mapreduce\SolvedCount$ProblemSolvedMapper.class
+mapreduce\SolvedCount.class
+mapreduce\UserByGenreRating.class
+mapreduce\MedianSolvedRating.class
+common\UserInfo.class
+mapreduce\MedianSolvedRating$IntegerMedianReducer.class
+key\UserGenre.class
+mapreduce\SolvedCount$IntegerSumReducer.class
+common\Utils.class
+mapreduce\UserByGenreRating$IntegerTop10MeanReducer.class
+mapreduce\UserByGenreRating$UserGenreMapper.class
+mapreduce\MedianSolvedRating$ProblemSolvedRatingMapper.class
