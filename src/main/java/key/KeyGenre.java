@@ -6,24 +6,30 @@ import java.io.IOException;
 
 import org.apache.hadoop.io.WritableComparable;
 
-public class UserGenre implements WritableComparable<UserGenre> {
+public class KeyGenre implements WritableComparable<KeyGenre> {
 
-	private String user;
+	private String key;
 	private String genre;
 	
-	public UserGenre() {
+	public KeyGenre() {
 	}
 	
-	public UserGenre(String user, String genre) {
-		this.user = user;
+	public KeyGenre(String str) {
+		String[] tokens = str.split(",");
+		this.key = tokens[0].substring(1);
+		this.genre = tokens[1].substring(0, tokens[1].length()-1);
+	}
+	
+	public KeyGenre(String key, String genre) {
+		this.key = key;
 		this.genre = genre;
 	}
 	
-	public String getUser() {
-		return user;
+	public String getKey() {
+		return key;
 	}
-	public void setUser(String user) {
-		this.user = user;
+	public void setKey(String key) {
+		this.key = key;
 	}
 	
 	public String getGenre() {
@@ -34,17 +40,17 @@ public class UserGenre implements WritableComparable<UserGenre> {
 	}
 	
 	public void readFields(DataInput in) throws IOException {
-		this.user = in.readUTF();
+		this.key = in.readUTF();
 		this.genre = in.readUTF();
 	}
 	
 	public void write(DataOutput out) throws IOException {
-		out.writeUTF(this.user);
+		out.writeUTF(this.key);
 		out.writeUTF(this.genre);
 	}
 	
-	public int compareTo(UserGenre other) {
-		if (this.user.compareTo(other.user) != 0) return this.user.compareTo(other.user);
+	public int compareTo(KeyGenre other) {
+		if (this.key.compareTo(other.key) != 0) return this.key.compareTo(other.key);
 		return this.genre.compareTo(other.genre);
 	}
 	
@@ -53,7 +59,7 @@ public class UserGenre implements WritableComparable<UserGenre> {
 		final int prime = 31;
         int result = 1;
         result = prime * result
-                + ((this.user == null) ? 0 : this.user.hashCode());
+                + ((this.key == null) ? 0 : this.key.hashCode());
         result = prime * result
                 + ((this.genre == null) ? 0 : this.genre.hashCode());
         return result;
@@ -63,14 +69,14 @@ public class UserGenre implements WritableComparable<UserGenre> {
 	public boolean equals(Object obj) {
 		if (this == obj) return true;
 		if (obj == null) return false;
-		if (!(obj instanceof UserGenre)) return false;
-		UserGenre other = (UserGenre)obj;
-		if (this.user.equals(other.user) && this.genre.equals(other.genre)) return true;
+		if (!(obj instanceof KeyGenre)) return false;
+		KeyGenre other = (KeyGenre)obj;
+		if (this.key.equals(other.key) && this.genre.equals(other.genre)) return true;
 		return false;
 	}
 	
 	public String toString() {
-		return "[" + this.user + "," + this.genre + "]";
+		return "[" + this.key + "," + this.genre + "]";
 	}
 		
 }

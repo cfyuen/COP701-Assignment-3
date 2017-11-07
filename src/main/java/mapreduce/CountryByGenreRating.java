@@ -5,10 +5,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import org.apache.commons.io.IOUtils;
 import org.apache.hadoop.conf.Configuration;
@@ -25,70 +23,68 @@ import org.codehaus.jackson.JsonNode;
 import org.codehaus.jackson.map.ObjectMapper;
 import org.codehaus.jackson.node.ArrayNode;
 
-import common.Utils;
+import common.UserInfo;
 import key.KeyGenre;
 
 
 /**
  * 
  * This will give out the average rating of top 10 difficult problems that each user solved by genre 
- * Map: Given user submission and problem rating, output [(user, genre), all solved problem rating] 
- * Reduce: Given [(user, genre), all solved problem rating], output [(user, genre), mean of top 10 rating]
+ * Map: Given [(user, genre), all solved problem rating], output [(country, genre), rating] 
+ * Reduce: Given [(country, genre), rating], output [(country, genre), mean of top K% rating]
  *
  */
-public class UserByGenreRating {
+public class CountryByGenreRating {
 
-	public static class UserGenreMapper extends Mapper<Object, Text, KeyGenre, IntWritable> {
+	public static class CountryGenreMapper extends Mapper<Object, Text, KeyGenre, IntWritable> {
 
-		private Map<String,Integer> problemRatingMap = new HashMap<String, Integer>();
-		private Set<String> allSolvedProblems = new HashSet<String>();
-		private Map<String,ArrayNode> problemGenre = new HashMap<String, ArrayNode>();
+		private Map<String,UserInfo> userMap = new HashMap<String, UserInfo>();
 		
-		private String pathDir = "problem.rating.txt";
+		private String pathDir = "user.ratedList.json";
 		
 		protected void setup(Context context) throws IOException {
 			Configuration conf = context.getConfiguration();
+			
 			FileSystem fs = FileSystem.get(conf);
+			
 			Path path = new Path(pathDir);
 			BufferedInputStream in = new BufferedInputStream(fs.open(path));
-			String problemList = "";
-			problemList = IOUtils.toString(in, "UTF-8");
+			String userList = "";
+			userList = IOUtils.toString(in, "UTF-8");
 		
-			String[] problems = problemList.split("\n");
-			for (String problem : problems) {
-				String[] token = problem.split("\t");
-				problemRatingMap.put(token[0],Integer.valueOf(token[1]));
+			ObjectMapper mapper = new ObjectMapper();
+			JsonNode node = mapper.readTree(userList);
+			ArrayNode result = (ArrayNode)node.get("result");
+			for (JsonNode user : result) {
+				String handle = user.get("handle").getTextValue();
+				UserInfo userInfo = new UserInfo();
+				if (user.get("country") == null) {
+					userInfo.setCountry("Unknown");
+				}
+				else {
+					userInfo.setCountry(user.get("country").getTextValue());
+				}
+				userInfo.setRating(user.get("rating").getIntValue());
+				userMap.put(handle, userInfo);
 			}
 		}
 
 		public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
-			String json = value.toString();
-			ObjectMapper mapper = new ObjectMapper();
-			JsonNode node = mapper.readTree(json);
-			ArrayNode result = (ArrayNode)node.get("result");
+			String file = value.toString();
+			String[] lines = file.split("\n");
 			
-			allSolvedProblems.clear();
-			
-			String handle = "";
-			
-			for (JsonNode sub : result) {
-				if (Utils.filterProblem(sub)) {
-					handle = sub.get("author").get("members").get(0).get("handle").getTextValue();
-					String problemName = sub.get("problem").get("name").getTextValue();
-					problemGenre.put(problemName, (ArrayNode) sub.get("problem").get("tags"));
-					allSolvedProblems.add(problemName);
-				}
+			for (String line : lines) {
+				String[] tokens = line.split("\t");
+				KeyGenre kg = new KeyGenre(tokens[0]);
+				Integer rating = Integer.valueOf(tokens[1]);
+				
+				String country = userMap.get(kg.getKey()).getCountry();
+				kg.setKey(country);
+				
+				System.out.println(kg + " " + rating);
+				context.write(kg, new IntWritable(rating));
 			}
 			
-			for (String problemName : allSolvedProblems) {
-				Integer rating = problemRatingMap.get(problemName);
-				ArrayNode tags = problemGenre.get(problemName);
-				for (JsonNode tag : tags) {
-					KeyGenre ug = new KeyGenre(handle, tag.getTextValue());
-					System.out.println(ug + " " + rating);
-					context.write(ug, new IntWritable(rating));
-				}
-			}
 		}
 
 		public void setPathDir(String pathDir) {
@@ -96,12 +92,18 @@ public class UserByGenreRating {
 		}
 	}
 
-	public static class IntegerTop10MeanReducer extends Reducer<KeyGenre, IntWritable, KeyGenre, IntWritable> {
+	public static class IntegerTopKPctMeanReducer extends Reducer<KeyGenre, IntWritable, KeyGenre, IntWritable> {
 		private List<Integer> ratingList = new ArrayList<Integer>();
 		private List<Integer> topList;
 		
-		private final int TOP = 10;
+		private int topKPct = 10;
 
+		protected void setup(Context context) throws IOException {
+			Configuration conf = context.getConfiguration();
+			
+			topKPct = conf.getInt("topk.pct", 10);
+		}
+		
 		public void reduce(KeyGenre key, Iterable<IntWritable> values, Context context)
 				throws IOException, InterruptedException {
 
@@ -112,7 +114,9 @@ public class UserByGenreRating {
 			System.out.println(key + " " + ratingList);
 			Collections.sort(ratingList);
 			if (!ratingList.isEmpty()) {
-				topList = ratingList.subList(Math.max(ratingList.size()-TOP, 0), ratingList.size());
+				int topK = (int)(Math.ceil(ratingList.size()*topKPct/100.0));
+				System.out.println(key + " Top K % is " + topK + " out of " + ratingList.size());
+				topList = ratingList.subList(Math.max(ratingList.size() - topK, 0), ratingList.size());
 				
 				Integer sum = 0;
 				for (Integer top : topList) {
@@ -127,11 +131,11 @@ public class UserByGenreRating {
 
 	public static void main(String[] args) throws Exception {
 		Configuration conf = new Configuration();
-		Job job = Job.getInstance(conf, "User genre top 10 rating");
-		job.setJarByClass(UserByGenreRating.class);
-		job.setMapperClass(UserGenreMapper.class);
+		Job job = Job.getInstance(conf, "Country genre top K pct rating");
+		job.setJarByClass(CountryByGenreRating.class);
+		job.setMapperClass(CountryGenreMapper.class);
 		//job.setCombinerClass(IntegerTop10MeanReducer.class);
-		job.setReducerClass(IntegerTop10MeanReducer.class);
+		job.setReducerClass(IntegerTopKPctMeanReducer.class);
 		job.setOutputKeyClass(KeyGenre.class);
 		job.setOutputValueClass(IntWritable.class);
 		FileInputFormat.addInputPath(job, new Path(args[0]));
