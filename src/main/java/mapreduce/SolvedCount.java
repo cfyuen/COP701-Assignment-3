@@ -12,6 +12,7 @@ import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.Mapper;
 import org.apache.hadoop.mapreduce.Reducer;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
+import org.apache.hadoop.mapreduce.lib.input.TextInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.codehaus.jackson.JsonNode;
 import org.codehaus.jackson.map.ObjectMapper;
@@ -65,6 +66,8 @@ public class SolvedCount {
 
 	public static void main(String[] args) throws Exception {
 		Configuration conf = new Configuration();
+		//conf.set("mapreduce.job.running.map.limit","2");
+		//conf.set("mapreduce.jobtracker.maxtasks.perjob","2");
 		Job job = Job.getInstance(conf, "Submission count");
 		job.setJarByClass(SolvedCount.class);
 		job.setMapperClass(ProblemSolvedMapper.class);
@@ -72,7 +75,8 @@ public class SolvedCount {
 		job.setReducerClass(IntegerSumReducer.class);
 		job.setOutputKeyClass(Text.class);
 		job.setOutputValueClass(IntWritable.class);
-		FileInputFormat.addInputPath(job, new Path(args[0]));
+		TextInputFormat.addInputPath(job, new Path(args[0]));
+		//TextInputFormat.setMaxInputSplitSize(job, 33554432);
 		FileOutputFormat.setOutputPath(job, new Path(args[1]));
 		System.exit(job.waitForCompletion(true) ? 0 : 1);
 	}

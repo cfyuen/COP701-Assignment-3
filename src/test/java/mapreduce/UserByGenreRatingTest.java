@@ -27,7 +27,7 @@ public class UserByGenreRatingTest {
     	UserGenreMapper mapper = new UserGenreMapper();
     	mapper.setPathDir("src/test/resources/problem.rating.txt");
         mapDriver = MapDriver.newMapDriver(mapper);
-        IntegerTop10MeanReducer reducer = new IntegerTop10MeanReducer();
+        IntegerTopMeanReducer reducer = new IntegerTopMeanReducer();
         reduceDriver = ReduceDriver.newReduceDriver(reducer);
         mapReduceDriver = MapReduceDriver.newMapReduceDriver(mapper, reducer);
     }

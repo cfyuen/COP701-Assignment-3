@@ -18,6 +18,7 @@ import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.Mapper;
 import org.apache.hadoop.mapreduce.Reducer;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
+import org.apache.hadoop.mapreduce.lib.input.TextInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.codehaus.jackson.JsonNode;
 import org.codehaus.jackson.map.ObjectMapper;
@@ -78,7 +79,9 @@ public class CountryByGenreRating {
 				KeyGenre kg = new KeyGenre(tokens[0]);
 				Integer rating = Integer.valueOf(tokens[1]);
 				
-				String country = userMap.get(kg.getKey()).getCountry();
+				UserInfo user = userMap.get(kg.getKey());
+				if (user == null) continue;
+				String country = user.getCountry();
 				kg.setKey(country);
 				
 				System.out.println(kg + " " + rating);
@@ -97,6 +100,9 @@ public class CountryByGenreRating {
 		private List<Integer> topList;
 		
 		private int topKPct = 10;
+		private final int threshold = 20;
+		
+		private boolean ignoreThreshold = false;
 
 		protected void setup(Context context) throws IOException {
 			Configuration conf = context.getConfiguration();
@@ -111,6 +117,8 @@ public class CountryByGenreRating {
 			for (IntWritable val : values) {
 				ratingList.add(val.get());
 			}
+			if (!ignoreThreshold && ratingList.size() < threshold) return;
+			
 			System.out.println(key + " " + ratingList);
 			Collections.sort(ratingList);
 			if (!ratingList.isEmpty()) {
@@ -127,10 +135,15 @@ public class CountryByGenreRating {
 				
 			}
 		}
+		
+		public void setIgnoreThreshold(boolean ignoreThreshold) {
+			this.ignoreThreshold = ignoreThreshold;
+		}
 	}
 
 	public static void main(String[] args) throws Exception {
 		Configuration conf = new Configuration();
+		//conf.set("mapreduce.job.running.map.limit","2");
 		Job job = Job.getInstance(conf, "Country genre top K pct rating");
 		job.setJarByClass(CountryByGenreRating.class);
 		job.setMapperClass(CountryGenreMapper.class);
@@ -138,7 +151,8 @@ public class CountryByGenreRating {
 		job.setReducerClass(IntegerTopKPctMeanReducer.class);
 		job.setOutputKeyClass(KeyGenre.class);
 		job.setOutputValueClass(IntWritable.class);
-		FileInputFormat.addInputPath(job, new Path(args[0]));
+		TextInputFormat.addInputPath(job, new Path(args[0]));
+		//TextInputFormat.setMaxInputSplitSize(job, 33554432);
 		FileOutputFormat.setOutputPath(job, new Path(args[1]));
 		System.exit(job.waitForCompletion(true) ? 0 : 1);
 	}

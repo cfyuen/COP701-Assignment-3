@@ -20,6 +20,7 @@ import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.Mapper;
 import org.apache.hadoop.mapreduce.Reducer;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
+import org.apache.hadoop.mapreduce.lib.input.TextInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.codehaus.jackson.JsonNode;
 import org.codehaus.jackson.map.ObjectMapper;
@@ -89,9 +90,13 @@ public class MedianSolvedRating {
 				}
 			}
 			
+			if (handle.length() == 0) return;
+			
 			for (String problemName : allSolvedProblems) {
 				word.set(problemName);
-				Integer rating = userMap.get(handle).getRating();
+				UserInfo user = userMap.get(handle);
+				if (user == null) continue;
+				Integer rating = user.getRating();
 				System.out.println(problemName + " " + rating);
 				context.write(word, new IntWritable(rating));
 			}
@@ -130,6 +135,7 @@ public class MedianSolvedRating {
 
 	public static void main(String[] args) throws Exception {
 		Configuration conf = new Configuration();
+		//conf.set("mapreduce.job.running.map.limit","2");
 		Job job = Job.getInstance(conf, "Submission median rating");
 		job.setJarByClass(MedianSolvedRating.class);
 		job.setMapperClass(ProblemSolvedRatingMapper.class);
@@ -137,7 +143,8 @@ public class MedianSolvedRating {
 		job.setReducerClass(IntegerMedianReducer.class);
 		job.setOutputKeyClass(Text.class);
 		job.setOutputValueClass(IntWritable.class);
-		FileInputFormat.addInputPath(job, new Path(args[0]));
+		TextInputFormat.addInputPath(job, new Path(args[0]));
+		//TextInputFormat.setMaxInputSplitSize(job, 33554432);
 		FileOutputFormat.setOutputPath(job, new Path(args[1]));
 		System.exit(job.waitForCompletion(true) ? 0 : 1);
 	}

@@ -28,6 +28,7 @@ public class CountryByGenreRatingTest {
     	mapper.setPathDir("src/test/resources/user.ratedList.trim.json");
         mapDriver = MapDriver.newMapDriver(mapper);
         IntegerTopKPctMeanReducer reducer = new IntegerTopKPctMeanReducer();
+        reducer.setIgnoreThreshold(true);
         reduceDriver = ReduceDriver.newReduceDriver(reducer);
         mapReduceDriver = MapReduceDriver.newMapReduceDriver(mapper, reducer);
     }

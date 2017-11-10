@@ -8,6 +8,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 
 import org.apache.commons.io.IOUtils;
@@ -20,6 +21,7 @@ import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.Mapper;
 import org.apache.hadoop.mapreduce.Reducer;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
+import org.apache.hadoop.mapreduce.lib.input.TextInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.codehaus.jackson.JsonNode;
 import org.codehaus.jackson.map.ObjectMapper;
@@ -44,7 +46,11 @@ public class UserByGenreRating {
 		private Set<String> allSolvedProblems = new HashSet<String>();
 		private Map<String,ArrayNode> problemGenre = new HashMap<String, ArrayNode>();
 		
+		private Map<KeyGenre,List<Integer> > genreRating = new HashMap<KeyGenre,List<Integer> >();
+		
 		private String pathDir = "problem.rating.txt";
+		
+		private final int TOP = 10;
 		
 		protected void setup(Context context) throws IOException {
 			Configuration conf = context.getConfiguration();
@@ -80,13 +86,32 @@ public class UserByGenreRating {
 				}
 			}
 			
+			if (handle.length() == 0) return;
+			
+			genreRating.clear();
+			
 			for (String problemName : allSolvedProblems) {
 				Integer rating = problemRatingMap.get(problemName);
 				ArrayNode tags = problemGenre.get(problemName);
 				for (JsonNode tag : tags) {
 					KeyGenre ug = new KeyGenre(handle, tag.getTextValue());
-					System.out.println(ug + " " + rating);
-					context.write(ug, new IntWritable(rating));
+					if (!genreRating.containsKey(ug)) {
+						ArrayList<Integer> list = new ArrayList<Integer>();
+						genreRating.put(ug, list);
+					}
+					genreRating.get(ug).add(rating);
+					
+				}
+			}
+			
+			for (Entry<KeyGenre, List<Integer>> entry : genreRating.entrySet()) {
+				List<Integer> list = entry.getValue();
+				Collections.sort(list);
+				list = list.subList(Math.max(0, list.size()-TOP), list.size());
+				
+				for (Integer rating : list) {
+					System.out.println(entry.getKey() + " " + rating);
+					context.write(entry.getKey(), new IntWritable(rating));
 				}
 			}
 		}
@@ -96,45 +121,35 @@ public class UserByGenreRating {
 		}
 	}
 
-	public static class IntegerTop10MeanReducer extends Reducer<KeyGenre, IntWritable, KeyGenre, IntWritable> {
-		private List<Integer> ratingList = new ArrayList<Integer>();
-		private List<Integer> topList;
+	public static class IntegerTopMeanReducer extends Reducer<KeyGenre, IntWritable, KeyGenre, IntWritable> {
 		
-		private final int TOP = 10;
-
 		public void reduce(KeyGenre key, Iterable<IntWritable> values, Context context)
 				throws IOException, InterruptedException {
 
-			ratingList.clear();
-			for (IntWritable val : values) {
-				ratingList.add(val.get());
+			Integer sum = 0;
+			Integer count = 0;
+			for (IntWritable top : values) {
+				sum += top.get();
+				count++;
 			}
-			System.out.println(key + " " + ratingList);
-			Collections.sort(ratingList);
-			if (!ratingList.isEmpty()) {
-				topList = ratingList.subList(Math.max(ratingList.size()-TOP, 0), ratingList.size());
+			Integer avg = sum / count;
+			context.write(key, new IntWritable(avg));
 				
-				Integer sum = 0;
-				for (Integer top : topList) {
-					sum += top;
-				}
-				Integer avg = sum / topList.size();
-				context.write(key, new IntWritable(avg));
-				
-			}
 		}
 	}
 
 	public static void main(String[] args) throws Exception {
 		Configuration conf = new Configuration();
+		//conf.set("mapreduce.job.running.map.limit","2");
 		Job job = Job.getInstance(conf, "User genre top 10 rating");
 		job.setJarByClass(UserByGenreRating.class);
 		job.setMapperClass(UserGenreMapper.class);
-		//job.setCombinerClass(IntegerTop10MeanReducer.class);
-		job.setReducerClass(IntegerTop10MeanReducer.class);
+		job.setCombinerClass(IntegerTopMeanReducer.class);
+		job.setReducerClass(IntegerTopMeanReducer.class);
 		job.setOutputKeyClass(KeyGenre.class);
 		job.setOutputValueClass(IntWritable.class);
-		FileInputFormat.addInputPath(job, new Path(args[0]));
+		TextInputFormat.addInputPath(job, new Path(args[0]));
+		//TextInputFormat.setMaxInputSplitSize(job, 33554432);
 		FileOutputFormat.setOutputPath(job, new Path(args[1]));
 		System.exit(job.waitForCompletion(true) ? 0 : 1);
 	}
