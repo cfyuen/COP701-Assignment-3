@@ -1,6 +1,5 @@
 package mapreduce;
 
-import static org.junit.Assert.*;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -9,12 +8,8 @@ import java.util.List;
 import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Text;
-import org.apache.hadoop.mapreduce.Mapper.Context;
 import org.apache.hadoop.mrunit.mapreduce.MapDriver;
 import org.apache.hadoop.mrunit.mapreduce.ReduceDriver;
-import org.codehaus.jackson.JsonNode;
-import org.codehaus.jackson.map.ObjectMapper;
-import org.codehaus.jackson.node.ArrayNode;
 import org.junit.Before;
 import org.junit.Test;
 
